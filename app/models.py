@@ -25,15 +25,37 @@ class Movie:
         self.vote_average = self.safe_cast(movie_data.get('vote_average', 0.0), float)
         self.vote_count = self.safe_cast(movie_data.get('vote_count', 0), int)
 
+    def to_dict(self):
+        return {
+            'budget': self.budget,
+            'genres': self.genres,
+            'homepage': self.homepage,
+            'id': self.id,
+            'keywords': self.keywords,
+            'original_language': self.original_language,
+            'original_title': self.original_title,
+            'overview': self.overview,
+            'popularity': self.popularity,
+            'production_companies': self.production_companies,
+            'production_countries': self.production_countries,
+            'release_date': self.release_date,
+            'revenue': self.revenue,
+            'runtime': self.runtime,
+            'spoken_languages': self.spoken_languages,
+            'status': self.status,
+            'tagline': self.tagline,
+            'title': self.title,
+            'vote_average': self.vote_average,
+            'vote_count': self.vote_count
+        }
+    
     def parse_list_field(self, field_value):
-        """Helper method to parse stringified JSON list fields."""
         try:
             return ast.literal_eval(field_value)
         except (ValueError, SyntaxError):
             return []
 
     def safe_cast(self, val, to_type):
-        """Helper method to safely cast values to a given type."""
         try:
             return to_type(val)
         except (ValueError, TypeError):
@@ -44,9 +66,18 @@ class MovieDataset:
         self.movies = self.load_data()
 
     def load_data(self):
-        # Load the CSV data
         df = pd.read_csv(Config.DATA_PATH)
         return [Movie(row) for _, row in df.iterrows()]
 
     def get_movies(self):
         return self.movies
+    
+    def get_similar_movies_objects(self, similar_movies):
+        movies = []
+        for pair in similar_movies:
+            # Assuming each 'pair' is a dictionary containing movie data
+            movie = Movie(pair)
+            movies.append(movie)
+        return movies
+
+        

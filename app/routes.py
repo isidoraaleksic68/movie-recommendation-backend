@@ -15,11 +15,13 @@ def recommend():
     movie_title = data.get('query', '')
     print("TITLE:" + movie_title)
     recommendations = recommendation_system.get_recommendations(movie_title)
+    recommendations_dict = [movie.to_dict() for movie in recommendations]
+
+
     if isinstance(recommendations, np.ndarray):
         recommendations = recommendations.tolist()
-
-    return jsonify({'recommendations': recommendations})
-
+    # Return the JSON response
+    return jsonify({'recommendations': recommendations_dict})
 
 @main.route('/movies', methods=['GET'])
 def get_all_movies():
