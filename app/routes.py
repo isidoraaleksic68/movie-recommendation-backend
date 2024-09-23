@@ -1,12 +1,12 @@
 from flask import Blueprint, request, jsonify
 from app.models import MovieDataset
 from app.recommendation import RecommendationSystem
+import numpy as np
 
 main = Blueprint('main', __name__)
 
-# Load the dataset and recommendation system
 movies = MovieDataset()
-recommendation_system = RecommendationSystem(movies.get_movies())
+recommendation_system = RecommendationSystem()
 
 @main.route('/recommend', methods=['POST'])
 def recommend():    
@@ -15,8 +15,13 @@ def recommend():
     movie_title = data.get('query', '')
     print("TITLE:" + movie_title)
     recommendations = recommendation_system.get_recommendations(movie_title)
-    return jsonify({'recommendations': recommendations})
+    recommendations_dict = [movie.to_dict() for movie in recommendations]
 
+
+    if isinstance(recommendations, np.ndarray):
+        recommendations = recommendations.tolist()
+    # Return the JSON response
+    return jsonify({'recommendations': recommendations_dict})
 
 @main.route('/movies', methods=['GET'])
 def get_all_movies():
