@@ -46,8 +46,6 @@ class MovieDataset:
     def load_data(self):
         # Load the CSV data
         df = pd.read_csv(Config.DATA_PATH)
-
-        # Iterate through the rows and create Movie objects
         return [Movie(row) for _, row in df.iterrows()]
 
     def get_movies(self):
