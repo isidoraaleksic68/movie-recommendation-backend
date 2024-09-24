@@ -25,11 +25,11 @@ def sanitize_movie_data(movies_list):
         sanitized_movies.append(sanitized_movie)
     return sanitized_movies
 
-@main.route('/recommend', methods=['POST'])
+@main.route('/movies/recommend', methods=['POST'])
 def recommend():    
     data = request.get_json()
     print("DATA:", data)
-    movie_title = data.get('query', '')
+    movie_title = data.get('movieTitle', '')
     print("TITLE:", movie_title)
     
     recommendations = recommendation_system.get_recommendations(movie_title)
