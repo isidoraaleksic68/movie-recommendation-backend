@@ -60,13 +60,18 @@ def search():
     # Sanitize search results
     sanitized_search_results = sanitize_movie_data(results_dict)
 
-    # Get top-rated search results
-    top_rated_search_results = sorted(sanitized_search_results, key=lambda x: x.get('vote_average', 0), reverse=True)
 
-    return jsonify({'searching results': top_rated_search_results})
+    # Implement pagination
+    page = int(request.args.get('page', 1))  # Default to page 1 if not specified
+    per_page = 12  # Number of movies per page
+    start = (page - 1) * per_page
+    end = start + per_page
+    paginated_results = sanitized_search_results[start:end]
+
+    return jsonify({'searching results': paginated_results}), 200, {'Content-Type': 'application/json'}
 
 @main.route('/movies/topRated', methods=['GET'])
-def get_all_movies_top_rated():
+def get_top_rated():
     # Get all movies and sort by vote average (descending)
     movies_list = sorted([movie.to_dict() for movie in movies.get_movies()], key=lambda x: x.get('vote_average', 0), reverse=True)
 
