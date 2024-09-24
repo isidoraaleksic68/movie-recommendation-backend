@@ -56,5 +56,3 @@ def get_movie_details(title):
     if movie:
         return jsonify(movie.__dict__)
     return jsonify({'error': 'Movie not found'}), 404
-
-# You can add sorting, filtering routes similarly
