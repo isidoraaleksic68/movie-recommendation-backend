@@ -100,3 +100,9 @@ class MovieDataset:
             movie = Movie(pair)
             movies.append(movie)
         return movies
+
+    def get_movie_by_id(self, movie_id):
+        for movie in self.movies:
+            if movie.id == movie_id:  # Accessing id attribute instead of using dictionary-like access
+                return movie
+        return None
