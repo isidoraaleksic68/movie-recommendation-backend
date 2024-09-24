@@ -87,3 +87,17 @@ def get_top_rated():
 
     # Convert to JSON
     return jsonify(paginated_movies), 200, {'Content-Type': 'application/json'}
+
+
+@main.route('/movies/<int:movie_id>', methods=['GET'])
+def get_movie_details(movie_id):
+    movie = movies.get_movie_by_id(movie_id)  # Assuming you have a method to get movie by ID
+
+    if movie is None:
+        return jsonify({'error': 'Movie not found'}), 404
+
+    # Convert the movie to dictionary and sanitize it
+    movie_dict = movie.to_dict()
+    sanitized_movie = sanitize_movie_data([movie_dict])[0]  # Sanitize to ensure no NaN values
+
+    return jsonify(sanitized_movie), 200, {'Content-Type': 'application/json'}
