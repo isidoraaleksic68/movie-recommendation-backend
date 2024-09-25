@@ -13,7 +13,7 @@ class RecommendationSystem:
         self.similar_movies = []
 
     def get_recommendations(self, movie_title, k=10):
-        movie_row = self.preprocessor.movies_df[self.preprocessor.movies_df['title'].str.lower() == movie_title.lower()]
+        movie_row = self.preprocessor.movies_df_old[self.preprocessor.movies_df_old['title'].str.lower() == movie_title.lower()]
         
         if movie_row.empty:
             return []  # Handle case if movie is not found
@@ -26,9 +26,9 @@ class RecommendationSystem:
         
         self.similar_movies = []
         for idx in similar_indices:
-            movie_data = self.preprocessor.movies_df.iloc[idx]
+            movie_data = self.preprocessor.movies_df_old.iloc[idx]
             movie_dict = movie_data.to_dict()
             movie_dict.pop('embedding', None)  # Optional, to remove unnecessary fields
             self.similar_movies.append(movie_dict)
 
-        return self.movie_data_set.get_similar_movies_objects(self.similar_movies)
+        return self.similar_movies
