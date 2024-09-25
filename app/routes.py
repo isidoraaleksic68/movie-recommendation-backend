@@ -25,27 +25,32 @@ def sanitize_movie_data(movies_list):
         sanitized_movies.append(sanitized_movie)
     return sanitized_movies
 
-@main.route('/recommend', methods=['POST'])
-def recommend():    
+# Assuming a dictionary to cache recommendations for each movie title
+recommendation_cache = {}
+
+@main.route('/movies/recommend', methods=['POST'])
+def recommend():
     data = request.get_json()
-    print("DATA:", data)
-    movie_title = data.get('query', '')
-    print("TITLE:", movie_title)
-    
-    recommendations = recommendation_system.get_recommendations(movie_title)
-    recommendations_dict = [movie.to_dict() for movie in recommendations]
+    movie_title = data.get('movieTitle', '')
 
-    # Sanitize recommendations
-    sanitized_recommendations = sanitize_movie_data(recommendations_dict)
+    # Cache recommendations for the movie title to avoid recalculating
+    if movie_title not in recommendation_cache:
+        recommendations = recommendation_system.get_recommendations(movie_title, k=100)  # Fetch up to 100 recommendations
+        recommendations_dict = [movie.to_dict() for movie in recommendations]
+        sanitized_recommendations = sanitize_movie_data(recommendations_dict)
+        recommendation_cache[movie_title] = sanitized_recommendations  # Store in cache
+    else:
+        sanitized_recommendations = recommendation_cache[movie_title]
 
-    # If recommendations return an ndarray, convert to list
-    if isinstance(recommendations, np.ndarray):
-        recommendations = recommendations.tolist()
-    
-    # Get top-rated recommendations
-    top_rated_recommendations = sorted(sanitized_recommendations, key=lambda x: x.get('vote_average', 0), reverse=True)
+    # Pagination logic
+    page = int(request.args.get('page', 1))  # Default to page 1 if not specified
+    per_page = 12  # Number of movies per page
+    start = (page - 1) * per_page
+    end = start + per_page
+    paginated_recommendations = sanitized_recommendations[start:end]
 
-    return jsonify({'recommendations': top_rated_recommendations})
+    return jsonify({'recommendations': paginated_recommendations}), 200, {'Content-Type': 'application/json'}
+
 
 @main.route('/movies/search', methods=['POST'])
 def search():
