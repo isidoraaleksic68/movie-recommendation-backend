@@ -6,6 +6,7 @@ import json
 from app.searching import SearchingSystem
 from app.filtering import FilteringSystem
 from app.sorting import SortingSystem
+from app.media_loading import MediaAndTrailers
 
 main = Blueprint('main', __name__)
 
@@ -17,6 +18,7 @@ recommendation_system = RecommendationSystem()
 searching_system = SearchingSystem(movies)
 filtering_system = FilteringSystem()
 sorting_system = SortingSystem()
+media_and_trailers = MediaAndTrailers()
 
 
 def sanitize_movie_data(movies_list):
@@ -193,3 +195,12 @@ def sort_movies():
    
     return jsonify({'sorted_movies': paginated_sorted_movies}), 200
 
+
+@main.route('/movies/<int:movie_id>/poster', methods=['GET'])
+def get_movie_poster(movie_id):
+    """Route to get the movie poster link by movie ID."""
+    movie_poster = media_and_trailers.fetch_movie_poster(movie_id)
+    if movie_poster:
+        return jsonify({"movie_poster": movie_poster}), 200
+    else:
+        return jsonify({"error": "Movie not found"}), 404
