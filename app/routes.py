@@ -1,15 +1,20 @@
 from flask import Blueprint, request, jsonify
-from app.models import MovieDataset
+from app.models import Movie, MovieDataset
 from app.recommendation import RecommendationSystem
 import numpy as np
 import json
 from app.searching import SearchingSystem
+from app.filtering import FilteringSystem
 
 main = Blueprint('main', __name__)
 
+movie_class = Movie(movie_data={})
 movies = MovieDataset()
+recommendation_cache = {}
+recommended_paginated_movies = []
 recommendation_system = RecommendationSystem()
 searching_system = SearchingSystem(movies)
+filtering_system = FilteringSystem()
 
 def sanitize_movie_data(movies_list):
     """Sanitize the movie data to ensure no NaN values are present."""
@@ -25,9 +30,6 @@ def sanitize_movie_data(movies_list):
         sanitized_movies.append(sanitized_movie)
     return sanitized_movies
 
-# Assuming a dictionary to cache recommendations for each movie title
-recommendation_cache = {}
-
 @main.route('/movies/recommend', methods=['POST'])
 def recommend():
     data = request.get_json()
@@ -36,8 +38,8 @@ def recommend():
     # Cache recommendations for the movie title to avoid recalculating
     if movie_title not in recommendation_cache:
         recommendations = recommendation_system.get_recommendations(movie_title, k=100)  # Fetch up to 100 recommendations
-        recommendations_dict = [movie.to_dict() for movie in recommendations]
-        sanitized_recommendations = sanitize_movie_data(recommendations_dict)
+        # recommendations_dict = [movie.to_dict() for movie in recommendations]
+        sanitized_recommendations = sanitize_movie_data(recommendations)
         recommendation_cache[movie_title] = sanitized_recommendations  # Store in cache
     else:
         sanitized_recommendations = recommendation_cache[movie_title]
@@ -106,3 +108,56 @@ def get_movie_details(movie_id):
     sanitized_movie = sanitize_movie_data([movie_dict])[0]  # Sanitize to ensure no NaN values
 
     return jsonify(sanitized_movie), 200, {'Content-Type': 'application/json'}
+
+
+@main.route('/movies/filter', methods=['POST'])
+def filter_movies():
+    data = request.get_json()
+    genre = data.get('genre')
+    language = data.get('language')
+    movie_title = data.get('movie_title')
+
+    # Fetch recommendations based on the provided movie title
+    sanitized_recommendations = recommendation_cache.get(movie_title, [])
+
+    # Filter the movies
+    filtering_system = FilteringSystem()
+    filtered_movies = filtering_system.filter_movies(genre, language, sanitized_recommendations)
+
+    # Convert filtered Movie objects to dictionaries
+    filtered_movies_dicts = [movie.to_dict() for movie in filtered_movies]
+
+
+    # Pagination logic
+    page = int(request.args.get('page', 1))  # Default to page 1 if not specified
+    per_page = 12  # Number of movies per page
+    start = (page - 1) * per_page
+    end = start + per_page
+    paginated_filtered_movies = filtered_movies_dicts[start:end]
+
+    return jsonify({'filtered_movies': paginated_filtered_movies}), 200, {'Content-Type': 'application/json'}
+
+
+@main.route('/movies/filtering/metadata', methods=['GET'])
+def get_metadata():
+    genres = set()
+    languages = set()
+
+    for movie in movies.get_movies():
+        # Collect unique genres
+        for genre in movie.genres:
+            genre_name = genre.get('name', '').strip().lower()
+            if genre_name:  # Ensure genre name is not empty
+                genres.add(genre_name)
+
+        # Collect unique spoken languages, filtering out invalid ones
+        for spoken_lang in movie.spoken_languages:
+            language_name = spoken_lang.get('name', '').strip().lower()
+            if language_name and language_name.isalpha():  # Ensure it's a valid language
+                languages.add(language_name)
+
+    # Return the sorted lists of unique genres and languages
+    return jsonify({
+        'genres': sorted(genres),
+        'spoken_languages': sorted(languages)
+    }), 200, {'Content-Type': 'application/json'}

@@ -10,6 +10,7 @@ from app.config import Config
 
 class MoviePreprocessor:
     def __init__(self, file_path=Config.DATA_PATH):
+        self.movies_df_old = pd.read_csv(file_path)
         self.movies_df = pd.read_csv(file_path)
         self.word_vectors = None
         self.features_matrix = None
