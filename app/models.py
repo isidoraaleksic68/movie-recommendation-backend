@@ -35,7 +35,7 @@ class Movie:
         return overview
 
     def to_dict(self):
-        print("Genres:", self.genres)  # Debugging output
+        # print("Genres:", self.genres)  # Debugging output
         return {
             'budget': self.safe_nan(self.budget),
             'genres': [{'id': genre['id'], 'name': genre['name']} for genre in self.genres if isinstance(genre, dict)],  # Access dict elements

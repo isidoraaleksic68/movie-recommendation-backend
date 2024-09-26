@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from app.models import MovieDataset
+from app.models import Movie, MovieDataset
 from app.recommendation import RecommendationSystem
 import numpy as np
 import json
@@ -8,6 +8,7 @@ from app.filtering import FilteringSystem
 
 main = Blueprint('main', __name__)
 
+movie_class = Movie(movie_data={})
 movies = MovieDataset()
 recommendation_cache = {}
 recommended_paginated_movies = []
@@ -135,3 +136,32 @@ def filter_movies():
     paginated_filtered_movies = filtered_movies_dicts[start:end]
 
     return jsonify({'filtered_movies': paginated_filtered_movies}), 200, {'Content-Type': 'application/json'}
+
+
+@main.route('/movies/filtering/metadata', methods=['GET'])
+def get_metadata():
+    genres = set()
+    languages = set()
+
+    for movie in movies.get_movies():
+        # Collect unique genres
+        for genre in movie.genres:
+            genre_name = genre.get('name', '').strip().lower()
+            if genre_name:  # Ensure genre name is not empty
+                genres.add(genre_name)
+
+        print("Collected genres: ", genres)
+        
+        # Collect unique spoken languages, filtering out invalid ones
+        for spoken_lang in movie.spoken_languages:
+            language_name = spoken_lang.get('name', '').strip().lower()
+            if language_name and language_name.isalpha():  # Ensure it's a valid language
+                languages.add(language_name)
+
+        print("Collected languages: ", languages)
+
+    # Return the sorted lists of unique genres and languages
+    return jsonify({
+        'genres': sorted(genres),
+        'spoken_languages': sorted(languages)
+    }), 200, {'Content-Type': 'application/json'}
