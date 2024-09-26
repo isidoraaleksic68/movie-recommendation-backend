@@ -5,6 +5,7 @@ import numpy as np
 import json
 from app.searching import SearchingSystem
 from app.filtering import FilteringSystem
+from app.sorting import SortingSystem
 
 main = Blueprint('main', __name__)
 
@@ -15,6 +16,8 @@ recommended_paginated_movies = []
 recommendation_system = RecommendationSystem()
 searching_system = SearchingSystem(movies)
 filtering_system = FilteringSystem()
+sorting_system = SortingSystem()
+
 
 def sanitize_movie_data(movies_list):
     """Sanitize the movie data to ensure no NaN values are present."""
@@ -144,20 +147,49 @@ def get_metadata():
     languages = set()
 
     for movie in movies.get_movies():
-        # Collect unique genres
         for genre in movie.genres:
             genre_name = genre.get('name', '').strip().lower()
-            if genre_name:  # Ensure genre name is not empty
+            if genre_name:
                 genres.add(genre_name)
 
-        # Collect unique spoken languages, filtering out invalid ones
         for spoken_lang in movie.spoken_languages:
             language_name = spoken_lang.get('name', '').strip().lower()
-            if language_name and language_name.isalpha():  # Ensure it's a valid language
+            if language_name and language_name.isalpha():  #To be sure the language is string
                 languages.add(language_name)
 
-    # Return the sorted lists of unique genres and languages
     return jsonify({
         'genres': sorted(genres),
         'spoken_languages': sorted(languages)
     }), 200, {'Content-Type': 'application/json'}
+
+@main.route('/movies/sort', methods=['POST'])
+def sort_movies():
+    data = request.get_json()
+    sort_criteria = data.get('sort_criteria', [])
+    movie_title = data.get('movie_title')
+
+    sanitized_recommendations = recommendation_cache.get(movie_title, [])
+    print("LEEEEEEEEEEEEEEEEEN" , len(sanitized_recommendations))
+
+    movie_objects_recommendation = [Movie(movie) for movie in sanitized_recommendations]
+    print("LEEEEEEEEEEEEEEEEEN111111111111111111111111" , len(sanitized_recommendations))
+
+    if not sort_criteria:
+        return jsonify({'error': 'No sorting criteria provided'}), 400
+
+    # Sort movies by budget and then by popularity
+    sorted_movies = sorting_system.sort_movies(movie_objects_recommendation, sort_criteria)
+
+    for movie in sorted_movies:
+        print(f"{movie.title} - Runtime: {movie.runtime}, Popularity: {movie.popularity}")
+
+    sanitized_sorted_movies = sanitize_movie_data([movie.to_dict() for movie in sorted_movies])
+
+    page = int(request.args.get('page', 1))  # Default to page 1 if not specified
+    per_page = 12  # Number of movies per page
+    start = (page - 1) * per_page
+    end = start + per_page
+    paginated_sorted_movies = sanitized_sorted_movies[start:end]
+   
+    return jsonify({'sorted_movies': paginated_sorted_movies}), 200
+
