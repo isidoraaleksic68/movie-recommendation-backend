@@ -204,3 +204,14 @@ def get_movie_poster(movie_id):
         return jsonify({"movie_poster": movie_poster}), 200
     else:
         return jsonify({"error": "Movie not found"}), 404
+    
+
+@main.route('/movies/<int:movie_id>/trailers', methods=['GET'])
+def get_movie_trailers(movie_id):
+    """Route to get the movie trailer links by movie ID."""
+    trailers = media_and_trailers.fetch_trailers(movie_id)
+    if trailers:
+        return jsonify({"trailers": trailers}), 200
+    else:
+        return jsonify({"error": "Movie not found or no trailers available"}), 404
+
