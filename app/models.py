@@ -119,3 +119,12 @@ class MovieDataset:
     def __iter__(self):
         """Make MovieDataset iterable."""
         return iter(self.movies)  # This makes MovieDataset iterable
+    
+    def get_movie_by_field(self, field_name, value):
+        # Loop through each movie and compare the field using dot notation
+        for movie in self.movies:
+            # Get the attribute using dot notation (e.g., movie.title, movie.id)
+            if hasattr(movie, field_name):
+                if getattr(movie, field_name) == value:
+                    return movie
+        return None
