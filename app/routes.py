@@ -150,15 +150,11 @@ def get_metadata():
             if genre_name:  # Ensure genre name is not empty
                 genres.add(genre_name)
 
-        print("Collected genres: ", genres)
-        
         # Collect unique spoken languages, filtering out invalid ones
         for spoken_lang in movie.spoken_languages:
             language_name = spoken_lang.get('name', '').strip().lower()
             if language_name and language_name.isalpha():  # Ensure it's a valid language
                 languages.add(language_name)
-
-        print("Collected languages: ", languages)
 
     # Return the sorted lists of unique genres and languages
     return jsonify({
