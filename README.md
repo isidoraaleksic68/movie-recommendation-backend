@@ -38,4 +38,13 @@ Welcome to the backend of the **Movie Recommendation System**, a Python-based RE
 ```bash
 git clone https://github.com/your-username/movie-recommendation-backend.git
 cd movie-recommendation-backend
-
+```
+2. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+3. Run the server:
+```bash
+python run.py
+```
+4. You can either launch the frontend or use Postman to test the API endpoints.
