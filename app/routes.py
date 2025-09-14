@@ -10,11 +10,16 @@ from app.media_loading import MediaAndTrailers
 
 main = Blueprint('main', __name__)
 
+
+from app.preprocessing import MoviePreprocessor
+from app.recommendation import RecommendationSystem
+
 movie_class = Movie(movie_data={})
 movies = MovieDataset()
+preprocessor = MoviePreprocessor()
+recommendation_system = RecommendationSystem(preprocessor)
 recommendation_cache = {}
 recommended_paginated_movies = []
-recommendation_system = RecommendationSystem()
 searching_system = SearchingSystem(movies)
 filtering_system = FilteringSystem()
 sorting_system = SortingSystem()
