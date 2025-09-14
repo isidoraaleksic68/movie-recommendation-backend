@@ -1,10 +1,9 @@
 from sklearn.metrics import silhouette_score
-import numpy as np
 
 class Evaluator:
     def __init__(self, features_matrix, labels):
         self.features = features_matrix
-        self.labels = labels  # npr. žanrovi
+        self.labels = labels
 
     def clustering_quality(self):
         try:

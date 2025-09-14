@@ -5,9 +5,6 @@ class FilteringSystem:
         self.movies = []
 
     def filter_movies(self, genre=None, language=None, recommended_movies=[]):
-        """
-        Filters movies by genre and language, flexible matching.
-        """
         self.movies = [Movie(movie_data) for movie_data in recommended_movies]
         filtered = self.movies
 
@@ -18,9 +15,8 @@ class FilteringSystem:
                 if not movie.genres:
                     continue
                 for g in movie.genres:
-                    # Podržavamo dict sa 'name' ili string
                     name = g['name'] if isinstance(g, dict) and 'name' in g else g
-                    if name and genre_lower in name.lower():  # substring match
+                    if name and genre_lower in name.lower():
                         genre_filtered.append(movie)
                         break
             filtered = genre_filtered
@@ -33,7 +29,7 @@ class FilteringSystem:
                     continue
                 for lang in movie.spoken_languages:
                     name = lang['name'] if isinstance(lang, dict) and 'name' in lang else lang
-                    if name and language_lower in name.lower():  # substring match
+                    if name and language_lower in name.lower():
                         language_filtered.append(movie)
                         break
             filtered = language_filtered

@@ -7,17 +7,9 @@ class RecommendationSystem:
         self.preprocessor.prepare_data()
         self.features_matrix = self.preprocessor.get_features_matrix()
         self.movie_titles = self.preprocessor.movies_df['title'].tolist()
-        
-        # metrika se bira kasnije (lenja inicijalizacija)
         self.best_metric = None  
 
     def choose_best_metric(self):
-        """
-        Odaberi najbolju metricu jednostavnijim kriterijumom:
-        probaj cosine, euclidean i dot,
-        izaberi onu koja daje najveću prosečnu razliku u skorovima
-        (što znači bolju separaciju između filmova).
-        """
         metrics = ["cosine", "euclidean", "dot"]
         avg_scores = {}
 
@@ -31,8 +23,6 @@ class RecommendationSystem:
                     sims = linear_kernel(self.features_matrix)
                 else:
                     continue
-
-                # jednostavan kriterijum: veći raspon = bolja separacija
                 score = float(np.std(sims))  
                 avg_scores[metric] = score
                 print(f"[EVAL] {metric} std = {score:.4f}")
@@ -53,7 +43,6 @@ class RecommendationSystem:
         return value
 
     def get_recommendations(self, movie_title, k=10):
-        # Ako prvi put pozivamo, tek sada biramo metricu
         if self.best_metric is None:
             self.choose_best_metric()
 

@@ -2,9 +2,8 @@ import csv
 from tmdbv3api import TMDb, Movie
 from config import Config
 
-# Initialize TMDb API
 tmdb = TMDb()
-tmdb.api_key = '963c3b43716c73c3ecce096f68c176e5'  # Replace with your TMDb API key
+tmdb.api_key = '963c3b43716c73c3ecce096f68c176e5'  # TMDb API key
 movie_search = Movie()
 
 def fetch_movie_data(movie_id):
@@ -12,16 +11,13 @@ def fetch_movie_data(movie_id):
     try:
         movie_details = movie_search.details(movie_id)
 
-        # Fetch movie poster
         movie_poster = f"https://image.tmdb.org/t/p/original/{movie_details.poster_path}" if movie_details.poster_path else None
         
-        # Fetch media (backdrops)
         media = [
             f"https://image.tmdb.org/t/p/w780/{backdrop.file_path}" 
             for backdrop in movie_details.backdrops
         ] if hasattr(movie_details, 'backdrops') else []
 
-        # Fetch trailers
         trailers = [
             f"https://www.youtube.com/watch?v={video.key}" 
             for video in movie_details.videos.results 
@@ -40,7 +36,6 @@ def create_csv_with_media(input_path, output_path):
         reader = csv.DictReader(file)
         rows = list(reader)
 
-    # Define fieldnames for the new CSV with only movie ID and links
     fieldnames = ['id', 'movie_poster', 'media', 'trailers']
 
     with open(output_path, 'w', newline='', encoding='utf-8') as file:
@@ -63,8 +58,7 @@ def create_csv_with_media(input_path, output_path):
 if __name__ == "__main__":
     print("Creating CSV with media...")
 
-    # Input and output CSV paths
-    data_input_path = Config.DATA_PATH  # Path to the input CSV
-    data_output_path = Config.DATA_WITH_MEDIA  # Path to the new CSV with media
+    data_input_path = Config.DATA_PATH
+    data_output_path = Config.DATA_WITH_MEDIA 
 
     create_csv_with_media(data_input_path, data_output_path)
