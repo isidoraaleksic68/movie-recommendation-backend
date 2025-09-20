@@ -16,7 +16,6 @@ class MoviePreprocessor:
         self.features_matrix = None
 
     def parse_list_column(self, column_name):
-        """Parse list columns in the DataFrame."""
         parsed_list = []
         for i in range(len(self.movies_df)):
             items = ast.literal_eval(self.movies_df[column_name].iloc[i])
@@ -24,7 +23,6 @@ class MoviePreprocessor:
         return parsed_list
 
     def prepare_data(self):
-        """Prepare the movie dataset by parsing columns and creating embeddings."""
         self.movies_df['genres'] = self.parse_list_column('genres')
         self.movies_df['keywords'] = self.parse_list_column('keywords')
         
@@ -41,7 +39,6 @@ class MoviePreprocessor:
         self.create_features_matrix()
 
     def get_sentence_embedding(self, title, overview, overview_weight=2):
-        """Generate sentence embeddings for title and overview."""
         title_words = title.split()
         overview_words = overview.split()
 
@@ -55,12 +52,10 @@ class MoviePreprocessor:
             return np.zeros(self.word_vectors.vector_size)
 
     def create_features_matrix(self):
-        """Create a feature matrix combining various features."""
         numerical_features = ['popularity', 'vote_average', 'vote_count', 'revenue']
         scaler = MinMaxScaler()
         self.movies_df[numerical_features] = scaler.fit_transform(self.movies_df[numerical_features])
 
-        # Combine features
         count_vectorizer = CountVectorizer(stop_words='english')
         count_matrix = count_vectorizer.fit_transform(self.movies_df['genres'] + ' ' + self.movies_df['keywords'] + ' ' + self.movies_df['overview'])
 
@@ -68,10 +63,9 @@ class MoviePreprocessor:
         self.features_matrix = np.hstack((count_matrix.toarray(), embedding_matrix, self.movies_df[numerical_features].values))
 
     def get_features_matrix(self):
-        """Return the features matrix for use in the recommendation system."""
         return self.features_matrix
 
-# Usage
+
 if __name__ == "__main__":
     preprocessor = MoviePreprocessor()
     preprocessor.prepare_data()

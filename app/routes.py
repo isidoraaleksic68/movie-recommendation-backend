@@ -10,11 +10,16 @@ from app.media_loading import MediaAndTrailers
 
 main = Blueprint('main', __name__)
 
+
+from app.preprocessing import MoviePreprocessor
+from app.recommendation import RecommendationSystem
+
 movie_class = Movie(movie_data={})
 movies = MovieDataset()
+preprocessor = MoviePreprocessor()
+recommendation_system = RecommendationSystem(preprocessor)
 recommendation_cache = {}
 recommended_paginated_movies = []
-recommendation_system = RecommendationSystem()
 searching_system = SearchingSystem(movies)
 filtering_system = FilteringSystem()
 sorting_system = SortingSystem()
@@ -22,14 +27,13 @@ media_and_trailers = MediaAndTrailers()
 
 
 def sanitize_movie_data(movies_list):
-    """Sanitize the movie data to ensure no NaN values are present."""
     sanitized_movies = []
     for movie in movies_list:
         sanitized_movie = {}
         for key, value in movie.items():
-            if isinstance(value, float) and (value != value):  # Check for NaN
+            if isinstance(value, float) and (value != value):
                 print(f"NaN value detected in field {key}, setting it to null")
-                sanitized_movie[key] = None  # Replace NaN with None
+                sanitized_movie[key] = None
             else:
                 sanitized_movie[key] = value
         sanitized_movies.append(sanitized_movie)
@@ -39,19 +43,15 @@ def sanitize_movie_data(movies_list):
 def recommend():
     data = request.get_json()
     movie_title = data.get('movieTitle', '')
-
-    # Cache recommendations for the movie title to avoid recalculating
     if movie_title not in recommendation_cache:
-        recommendations = recommendation_system.get_recommendations(movie_title, k=100)  # Fetch up to 100 recommendations
-        # recommendations_dict = [movie.to_dict() for movie in recommendations]
+        recommendations = recommendation_system.get_recommendations(movie_title, k=100)
         sanitized_recommendations = sanitize_movie_data(recommendations)
-        recommendation_cache[movie_title] = sanitized_recommendations  # Store in cache
+        recommendation_cache[movie_title] = sanitized_recommendations
     else:
         sanitized_recommendations = recommendation_cache[movie_title]
 
-    # Pagination logic
-    page = int(request.args.get('page', 1))  # Default to page 1 if not specified
-    per_page = 12  # Number of movies per page
+    page = int(request.args.get('page', 1))
+    per_page = 12
     start = (page - 1) * per_page
     end = start + per_page
     paginated_recommendations = sanitized_recommendations[start:end]
@@ -69,13 +69,10 @@ def search():
     search_results = searching_system.get_results(movie_title)
     results_dict = [movie.to_dict() for movie in search_results]
 
-    # Sanitize search results
     sanitized_search_results = sanitize_movie_data(results_dict)
 
-
-    # Implement pagination
-    page = int(request.args.get('page', 1))  # Default to page 1 if not specified
-    per_page = 12  # Number of movies per page
+    page = int(request.args.get('page', 1))
+    per_page = 12
     start = (page - 1) * per_page
     end = start + per_page
     paginated_results = sanitized_search_results[start:end]
@@ -84,33 +81,26 @@ def search():
 
 @main.route('/movies/topRated', methods=['GET'])
 def get_top_rated():
-    # Get all movies and sort by vote average (descending)
     movies_list = sorted([movie.to_dict() for movie in movies.get_movies()], key=lambda x: x.get('vote_average', 0), reverse=True)
-
-    # Sanitize the movies by removing NaN values
     sanitized_movies_list = sanitize_movie_data(movies_list)
-
-    # Implement pagination
-    page = int(request.args.get('page', 1))  # Default to page 1 if not specified
-    per_page = 12  # Number of movies per page
+    page = int(request.args.get('page', 1))
+    per_page = 12
     start = (page - 1) * per_page
     end = start + per_page
     paginated_movies = sanitized_movies_list[start:end]
 
-    # Convert to JSON
     return jsonify(paginated_movies), 200, {'Content-Type': 'application/json'}
 
 
 @main.route('/movies/<int:movie_id>', methods=['GET'])
 def get_movie_details(movie_id):
-    movie = movies.get_movie_by_id(movie_id)  # Assuming you have a method to get movie by ID
+    movie = movies.get_movie_by_id(movie_id)
 
     if movie is None:
         return jsonify({'error': 'Movie not found'}), 404
-
-    # Convert the movie to dictionary and sanitize it
+    
     movie_dict = movie.to_dict()
-    sanitized_movie = sanitize_movie_data([movie_dict])[0]  # Sanitize to ensure no NaN values
+    sanitized_movie = sanitize_movie_data([movie_dict])[0]
 
     return jsonify(sanitized_movie), 200, {'Content-Type': 'application/json'}
 
@@ -121,21 +111,12 @@ def filter_movies():
     genre = data.get('genre')
     language = data.get('language')
     movie_title = data.get('movie_title')
-
-    # Fetch recommendations based on the provided movie title
     sanitized_recommendations = recommendation_cache.get(movie_title, [])
-
-    # Filter the movies
     filtering_system = FilteringSystem()
     filtered_movies = filtering_system.filter_movies(genre, language, sanitized_recommendations)
-
-    # Convert filtered Movie objects to dictionaries
     filtered_movies_dicts = [movie.to_dict() for movie in filtered_movies]
-
-
-    # Pagination logic
-    page = int(request.args.get('page', 1))  # Default to page 1 if not specified
-    per_page = 12  # Number of movies per page
+    page = int(request.args.get('page', 1))
+    per_page = 12
     start = (page - 1) * per_page
     end = start + per_page
     paginated_filtered_movies = filtered_movies_dicts[start:end]
@@ -156,7 +137,7 @@ def get_metadata():
 
         for spoken_lang in movie.spoken_languages:
             language_name = spoken_lang.get('name', '').strip().lower()
-            if language_name and language_name.isalpha():  #To be sure the language is string
+            if language_name and language_name.isalpha():
                 languages.add(language_name)
 
     return jsonify({
@@ -171,15 +152,12 @@ def sort_movies():
     movie_title = data.get('movie_title')
 
     sanitized_recommendations = recommendation_cache.get(movie_title, [])
-    print("LEEEEEEEEEEEEEEEEEN" , len(sanitized_recommendations))
 
     movie_objects_recommendation = [Movie(movie) for movie in sanitized_recommendations]
-    print("LEEEEEEEEEEEEEEEEEN111111111111111111111111" , len(sanitized_recommendations))
 
     if not sort_criteria:
         return jsonify({'error': 'No sorting criteria provided'}), 400
 
-    # Sort movies by budget and then by popularity
     sorted_movies = sorting_system.sort_movies(movie_objects_recommendation, sort_criteria)
 
     for movie in sorted_movies:
@@ -187,8 +165,8 @@ def sort_movies():
 
     sanitized_sorted_movies = sanitize_movie_data([movie.to_dict() for movie in sorted_movies])
 
-    page = int(request.args.get('page', 1))  # Default to page 1 if not specified
-    per_page = 12  # Number of movies per page
+    page = int(request.args.get('page', 1)) 
+    per_page = 12
     start = (page - 1) * per_page
     end = start + per_page
     paginated_sorted_movies = sanitized_sorted_movies[start:end]
@@ -198,7 +176,6 @@ def sort_movies():
 
 @main.route('/movies/<int:movie_id>/poster', methods=['GET'])
 def get_movie_poster(movie_id):
-    """Route to get the movie poster link by movie ID."""
     movie_poster = media_and_trailers.fetch_movie_poster(movie_id)
     if movie_poster:
         return jsonify({"movie_poster": movie_poster}), 200
@@ -208,7 +185,6 @@ def get_movie_poster(movie_id):
 
 @main.route('/movies/<int:movie_id>/trailers', methods=['GET'])
 def get_movie_trailers(movie_id):
-    """Route to get the movie trailer links by movie ID."""
     trailers = media_and_trailers.fetch_trailers(movie_id)
     if trailers:
         return jsonify({"trailers": trailers}), 200
