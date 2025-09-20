@@ -3,7 +3,7 @@ from tmdbv3api import TMDb, Movie
 from config import Config
 
 tmdb = TMDb()
-tmdb.api_key = '963c3b43716c73c3ecce096f68c176e5'  # TMDb API key
+tmdb.api_key = '963c3b43716c73c3ecce096f68c176e5' 
 movie_search = Movie()
 
 def fetch_movie_data(movie_id):
