@@ -8,7 +8,6 @@ def create_app():
 
     app.config.from_object('app.config.Config')
 
-    # Register Blueprints (modular routes)
     app.register_blueprint(main)
 
     return app

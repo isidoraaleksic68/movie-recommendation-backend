@@ -27,7 +27,6 @@ class Movie:
         self.vote_count = self.safe_cast(movie_data.get('vote_count', 0), int)
 
     def get_overview(self, movie_data):
-        """Get the overview from movie_data."""
         overview = movie_data.get('overview', '')
         if overview is None or (isinstance(overview, str) and overview.strip() == ''):
             print("Sanitized None or empty value in overview")

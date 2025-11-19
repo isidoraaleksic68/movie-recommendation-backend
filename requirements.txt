@@ -3,3 +3,5 @@ pandas
 scikit-learn
 gensim
 tmdbv3api
+sentence-transformers
+torch
