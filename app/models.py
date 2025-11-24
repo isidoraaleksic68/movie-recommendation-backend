@@ -1,5 +1,7 @@
 import pandas as pd
 import json
+import pickle
+import os
 from app.config import Config
 import math
 
@@ -86,11 +88,33 @@ class Movie:
 
 
 class MovieDataset:
-    def __init__(self):
+    """
+    Dataset klasa koja učitava SAMO train set filmove za aplikaciju.
+    Test i validation setovi se ne koriste u aplikaciji.
+    """
+    def __init__(self, use_train_split=True):
+        self.use_train_split = use_train_split
+        self.split_cache_file = "dataset_split.pkl"
         self.movies = self.load_data()
 
     def load_data(self):
-        df = pd.read_csv(Config.DATA_PATH)
+        """Učitava filmove - samo train set ako je use_train_split=True"""
+        df_full = pd.read_csv(Config.DATA_PATH)
+        
+        if self.use_train_split and os.path.exists(self.split_cache_file):
+            # Učitaj samo train indices
+            with open(self.split_cache_file, 'rb') as f:
+                split_data = pickle.load(f)
+            train_indices = split_data['train_indices']
+            df = df_full.iloc[train_indices].reset_index(drop=True)
+            print(f"[INFO] MovieDataset učitao {len(df)} filmova iz TRAIN seta")
+        else:
+            df = df_full
+            if self.use_train_split:
+                print(f"[WARNING] Split cache ne postoji. Koristim ceo dataset ({len(df)} filmova).")
+            else:
+                print(f"[INFO] MovieDataset učitao {len(df)} filmova (ceo dataset)")
+        
         return [Movie(row) for _, row in df.iterrows()]
 
     def get_movies(self):

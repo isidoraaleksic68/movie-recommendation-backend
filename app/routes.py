@@ -1,13 +1,14 @@
 from flask import Blueprint, request, jsonify
 from app.models import Movie, MovieDataset
 from app.recommendation import RecommendationSystem
+from app.config import Config
 import numpy as np
 import json
 from app.searching import SearchingSystem
 from app.filtering import FilteringSystem
 from app.sorting import SortingSystem
 from app.media_loading import MediaAndTrailers
-from app.evaluation import Evaluator
+from app.evaluation import MLEvaluator
 from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances, linear_kernel
 
 main = Blueprint('main', __name__)
@@ -15,18 +16,126 @@ main = Blueprint('main', __name__)
 
 from app.preprocessing import MoviePreprocessor
 from app.recommendation import RecommendationSystem
+import os
+import datetime
+
+# VAŽNO: Koristi train split iz config-a!
+USE_TRAIN_SPLIT = Config.USE_TRAIN_SPLIT
 
 movie_class = Movie(movie_data={})
-movies = MovieDataset()
-preprocessor = MoviePreprocessor()
-recommendation_system = RecommendationSystem(preprocessor)
+movies = MovieDataset(use_train_split=USE_TRAIN_SPLIT)
+preprocessor = MoviePreprocessor(use_train_split=USE_TRAIN_SPLIT)
+
+preprocessor.prepare_data()
+
+ml_evaluator = None
+evaluation_results = None
+best_algorithm = 'cosine'
+
+if USE_TRAIN_SPLIT:
+    import pickle
+    with open('dataset_split.pkl', 'rb') as f:
+        split_data = pickle.load(f)
+    
+    train_indices = split_data['train_indices']
+    test_indices = split_data['test_indices']
+    val_indices = split_data['val_indices']
+    
+    test_features = preprocessor.create_features_matrix_for_evaluation(preprocessor.test_df)
+    val_features = preprocessor.create_features_matrix_for_evaluation(preprocessor.val_df)
+    
+    full_features = np.zeros((len(preprocessor.movies_df_full), preprocessor.features_matrix.shape[1]))
+    full_features[train_indices] = preprocessor.features_matrix
+    full_features[test_indices] = test_features
+    full_features[val_indices] = val_features
+    
+    ml_evaluator = MLEvaluator(
+        features_matrix=full_features,
+        movie_ids=preprocessor.movies_df_full['id'].tolist(),
+        movie_titles=preprocessor.movies_df_full['title'].tolist()
+    )
+    
+    ml_evaluator.train_indices = train_indices
+    ml_evaluator.test_indices = test_indices
+    ml_evaluator.val_indices = val_indices
+    
+    try:
+        start_time = datetime.datetime.now()
+        
+        comparison = ml_evaluator.compare_all_recommendation_metrics(k=10)
+        
+        best_result = max(comparison, key=lambda x: x['quality_score'])
+        best_algorithm = best_result['metric']
+        best_quality_score = best_result['quality_score']
+        
+        end_time = datetime.datetime.now()
+        duration = (end_time - start_time).total_seconds()
+        
+        # Pripremi detaljan evaluacioni izveštaj
+        evaluation_results = {
+            'timestamp': start_time.isoformat(),
+            'duration_seconds': round(duration, 2),
+            'dataset_info': {
+                'train_size': len(preprocessor.movies_df),
+                'test_size': len(preprocessor.test_df),
+                'val_size': len(preprocessor.val_df),
+                'total_size': len(preprocessor.movies_df_full),
+                'features_dim': preprocessor.features_matrix.shape[1]
+            },
+            'evaluation_method': {
+                'type': 'Train on TRAIN set, evaluate on VALIDATION set',
+                'metrics': 'INTRINSIC metrics (ASQ, ILS) - standardne RecSys metrike bez user feedback',
+                'metric_description': {
+                    'ASQ': 'Average Similarity to Query - relevantnost (0-1, više=bolje)',
+                    'ILS': 'Intra-List Similarity - redundansa (0-1, niže=bolje)',
+                    'Quality': 'ASQ × (1-ILS) - kombinovano (0-1, više=bolje)'
+                },
+                'selection_criterion': 'Quality score sa top-10 preporuka na VALIDATION setu',
+                'tested_algorithms': ['cosine', 'euclidean', 'dot'],
+                'note': 'Test set je rezervisan i nije korišćen tokom optimizacije'
+            },
+            'best_algorithm': {
+                'name': best_algorithm,
+                'validation_asq': round(best_result['asq'], 6),
+                'validation_ils': round(best_result['ils'], 6),
+                'validation_quality_score': round(best_quality_score, 6),
+                'quality_std': round(best_result['quality_std'], 6),
+                'score_range': '0.0 - 1.0'
+            },
+            'all_results': [
+                {
+                    'metric': r['metric'],
+                    'asq': round(r['asq'], 6),
+                    'asq_std': round(r['asq_std'], 6),
+                    'ils': round(r['ils'], 6),
+                    'ils_std': round(r['ils_std'], 6),
+                    'quality_score': round(r['quality_score'], 6),
+                    'quality_std': round(r['quality_std'], 6)
+                }
+                for r in comparison
+            ]
+        }
+        
+        results_file = 'evaluation_results.json'
+        with open(results_file, 'w', encoding='utf-8') as f:
+            json.dump(evaluation_results, f, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        evaluation_results = {
+            'error': str(e),
+            'fallback_algorithm': 'cosine',
+            'timestamp': datetime.datetime.now().isoformat()
+        }
+        with open('evaluation_results.json', 'w', encoding='utf-8') as f:
+            json.dump(evaluation_results, f, indent=2, ensure_ascii=False)
+
+recommendation_system = RecommendationSystem(preprocessor, best_metric=best_algorithm)
 recommendation_cache = {}
 recommended_paginated_movies = []
 searching_system = SearchingSystem(movies)
 filtering_system = FilteringSystem()
 sorting_system = SortingSystem()
 media_and_trailers = MediaAndTrailers()
-evaluator = Evaluator()
 
 
 def sanitize_movie_data(movies_list):
@@ -35,7 +144,6 @@ def sanitize_movie_data(movies_list):
         sanitized_movie = {}
         for key, value in movie.items():
             if isinstance(value, float) and (value != value):
-                print(f"NaN value detected in field {key}, setting it to null")
                 sanitized_movie[key] = None
             else:
                 sanitized_movie[key] = value
@@ -44,6 +152,7 @@ def sanitize_movie_data(movies_list):
 
 @main.route('/movies/recommend', methods=['POST'])
 def recommend():
+    """Vraća preporuke koristeći automatski odabrani najbolji algoritam"""
     data = request.get_json()
     movie_title = data.get('movieTitle', '')
     if movie_title not in recommendation_cache:
@@ -62,16 +171,16 @@ def recommend():
 
     return jsonify({
         'recommendations': paginated_recommendations,
-        'total_pages': total_pages
+        'total_pages': total_pages,
+        'algorithm_used': recommendation_system.best_metric if USE_TRAIN_SPLIT else 'cosine',
+        'ml_optimized': USE_TRAIN_SPLIT
     }), 200, {'Content-Type': 'application/json'}
 
 
 @main.route('/movies/search', methods=['POST'])
 def search():
     data = request.get_json()
-    print("Data from search:", data)
     movie_title = data.get('query', '')
-    print("Title from search:", movie_title)
     
     search_results = searching_system.get_results(movie_title)
     results_dict = [movie.to_dict() for movie in search_results]
@@ -179,9 +288,6 @@ def sort_movies():
 
     sorted_movies = sorting_system.sort_movies(movie_objects_recommendation, sort_criteria)
 
-    for movie in sorted_movies:
-        print(f"{movie.title} - Runtime: {movie.runtime}, Popularity: {movie.popularity}")
-
     sanitized_sorted_movies = sanitize_movie_data([movie.to_dict() for movie in sorted_movies])
 
     page = int(request.args.get('page', 1)) 
@@ -214,167 +320,3 @@ def get_movie_trailers(movie_id):
     else:
         return jsonify({"error": "Movie not found or no trailers available"}), 404
 
-
-@main.route('/movies/evaluate', methods=['POST'])
-def evaluate_recommendations():
-    data = request.get_json()
-    movie_title = data.get('movieTitle', '')
-    k = data.get('k', 10)
-    
-    if movie_title not in recommendation_cache:
-        recommendations = recommendation_system.get_recommendations(movie_title, k=100)
-        sanitized_recommendations = sanitize_movie_data(recommendations)
-        recommendation_cache[movie_title] = sanitized_recommendations
-    else:
-        sanitized_recommendations = recommendation_cache[movie_title]
-    
-    evaluation_results = evaluator.evaluate_recommendations(
-        sanitized_recommendations[:k],
-        k=k
-    )
-    
-    try:
-        movie_row = preprocessor.movies_df[
-            preprocessor.movies_df['title'].str.lower() == movie_title.lower()
-        ]
-        if not movie_row.empty:
-            rec_indices = []
-            for rec in sanitized_recommendations[:k]:
-                rec_title = rec.get('title', '')
-                rec_row = preprocessor.movies_df[
-                    preprocessor.movies_df['title'].str.lower() == rec_title.lower()
-                ]
-                if not rec_row.empty:
-                    rec_indices.append(rec_row.index[0])
-            
-            if len(rec_indices) > 1:
-                diversity_dist = evaluator.diversity_distance(
-                    sanitized_recommendations[:k],
-                    recommendation_system.features_matrix,
-                    rec_indices
-                )
-                evaluation_results['diversity_distance'] = diversity_dist
-    except Exception as e:
-        print(f"Error calculating diversity distance: {e}")
-    
-    return jsonify({
-        'movie_title': movie_title,
-        'k': k,
-        'metrics': evaluation_results
-    }), 200
-
-
-@main.route('/movies/compare-metrics', methods=['POST'])
-def compare_metrics():
-    data = request.get_json()
-    movie_title = data.get('movieTitle', '')
-    k = data.get('k', 10)
-    
-    movie_row = preprocessor.movies_df[
-        preprocessor.movies_df['title'].str.lower() == movie_title.lower()
-    ]
-    
-    if movie_row.empty:
-        return jsonify({'error': 'Movie not found'}), 404
-    
-    input_index = movie_row.index[0]
-    features_matrix = recommendation_system.features_matrix
-    
-    results = {}
-    
-    cosine_sims = cosine_similarity([features_matrix[input_index]], features_matrix)[0]
-    cosine_indices = cosine_sims.argsort()[-k-1:-1][::-1]
-    cosine_recs = [preprocessor.movies_df.iloc[idx]['title'] for idx in cosine_indices]
-    
-    results['cosine'] = {
-        'recommendations': cosine_recs,
-        'avg_similarity': float(np.mean(cosine_sims[cosine_indices])),
-        'std_similarity': float(np.std(cosine_sims[cosine_indices]))
-    }
-    
-    euclidean_sims = -euclidean_distances([features_matrix[input_index]], features_matrix)[0]
-    euclidean_indices = euclidean_sims.argsort()[-k-1:-1][::-1]
-    euclidean_recs = [preprocessor.movies_df.iloc[idx]['title'] for idx in euclidean_indices]
-    
-    results['euclidean'] = {
-        'recommendations': euclidean_recs,
-        'avg_similarity': float(np.mean(euclidean_sims[euclidean_indices])),
-        'std_similarity': float(np.std(euclidean_sims[euclidean_indices]))
-    }
-    
-    dot_sims = linear_kernel([features_matrix[input_index]], features_matrix)[0]
-    dot_indices = dot_sims.argsort()[-k-1:-1][::-1]
-    dot_recs = [preprocessor.movies_df.iloc[idx]['title'] for idx in dot_indices]
-    
-    results['dot_product'] = {
-        'recommendations': dot_recs,
-        'avg_similarity': float(np.mean(dot_sims[dot_indices])),
-        'std_similarity': float(np.std(dot_sims[dot_indices]))
-    }
-    
-    return jsonify({
-        'movie_title': movie_title,
-        'k': k,
-        'comparison': results
-    }), 200
-
-
-@main.route('/movies/statistics', methods=['GET'])
-def get_dataset_statistics():
-    all_movies = movies.get_movies()
-    
-    total_movies = len(all_movies)
-    
-    all_genres = set()
-    genre_counts = {}
-    for movie in all_movies:
-        for genre in movie.genres:
-            if isinstance(genre, dict) and 'name' in genre:
-                genre_name = genre['name']
-                all_genres.add(genre_name)
-                genre_counts[genre_name] = genre_counts.get(genre_name, 0) + 1
-    
-    all_languages = set()
-    for movie in all_movies:
-        all_languages.add(movie.original_language)
-    
-    ratings = [movie.vote_average for movie in all_movies if movie.vote_average > 0]
-    avg_rating = sum(ratings) / len(ratings) if ratings else 0
-    
-    popularities = [movie.popularity for movie in all_movies if movie.popularity > 0]
-    avg_popularity = sum(popularities) / len(popularities) if popularities else 0
-    
-    budgets = [movie.budget for movie in all_movies if movie.budget > 0]
-    revenues = [movie.revenue for movie in all_movies if movie.revenue > 0]
-    
-    avg_budget = sum(budgets) / len(budgets) if budgets else 0
-    avg_revenue = sum(revenues) / len(revenues) if revenues else 0
-    
-    top_genres = sorted(genre_counts.items(), key=lambda x: x[1], reverse=True)[:10]
-    
-    return jsonify({
-        'total_movies': total_movies,
-        'total_genres': len(all_genres),
-        'total_languages': len(all_languages),
-        'rating_statistics': {
-            'average': round(avg_rating, 2),
-            'min': round(min(ratings), 2) if ratings else 0,
-            'max': round(max(ratings), 2) if ratings else 0,
-            'total_rated': len(ratings)
-        },
-        'popularity_statistics': {
-            'average': round(avg_popularity, 2),
-            'min': round(min(popularities), 2) if popularities else 0,
-            'max': round(max(popularities), 2) if popularities else 0
-        },
-        'budget_statistics': {
-            'average': round(avg_budget, 2),
-            'total_with_budget': len(budgets)
-        },
-        'revenue_statistics': {
-            'average': round(avg_revenue, 2),
-            'total_with_revenue': len(revenues)
-        },
-        'top_genres': [{'name': name, 'count': count} for name, count in top_genres],
-        'all_genres': sorted(list(all_genres))
-    }), 200

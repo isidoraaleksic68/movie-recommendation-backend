@@ -2,36 +2,14 @@ import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances, linear_kernel
 
 class RecommendationSystem:
-    def __init__(self, preprocessor):
+    def __init__(self, preprocessor, best_metric='cosine'):
         self.preprocessor = preprocessor
-        self.preprocessor.prepare_data()
         self.features_matrix = self.preprocessor.get_features_matrix()
         self.movie_titles = self.preprocessor.movies_df['title'].tolist()
-        self.best_metric = None  
+        self.best_metric = best_metric
 
-    def choose_best_metric(self):
-        metrics = ["cosine", "euclidean", "dot"]
-        avg_scores = {}
-
-        for metric in metrics:
-            try:
-                if metric == "cosine":
-                    sims = cosine_similarity(self.features_matrix)
-                elif metric == "euclidean":
-                    sims = -euclidean_distances(self.features_matrix)
-                elif metric == "dot":
-                    sims = linear_kernel(self.features_matrix)
-                else:
-                    continue
-                score = float(np.std(sims))  
-                avg_scores[metric] = score
-                print(f"[EVAL] {metric} std = {score:.4f}")
-            except Exception as e:
-                print(f"[WARN] Evaluacija nije uspela za {metric}: {e}")
-                avg_scores[metric] = -1
-
-        self.best_metric = max(avg_scores, key=avg_scores.get)
-        print(f"[INFO] Odabrana metrika: {self.best_metric}")
+    def set_best_metric(self, metric):
+        self.best_metric = metric
 
     def safe_convert(self, value):
         if isinstance(value, (np.int64, np.int32)):
@@ -43,9 +21,9 @@ class RecommendationSystem:
         return value
 
     def get_recommendations(self, movie_title, k=10):
-        if self.best_metric is None:
-            self.choose_best_metric()
-
+        """
+        Generiše preporuke koristeći trenutno postavljenu best_metric.
+        """
         movie_row = self.preprocessor.movies_df[
             self.preprocessor.movies_df['title'].str.lower() == movie_title.lower()
         ]
